@@ -6,6 +6,9 @@
   const $$ = (s, c = document) => [...c.querySelectorAll(s)];
 
   if (reduced || !hasGsap) root.classList.add("reduced");
+  // Always start at the top so the hero never opens half-scrolled
+  if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+  scrollTo(0, 0);
 
   /* ---------- Nav: hide on scroll down, burger sheet ---------- */
   const nav = $("#nav");
@@ -32,7 +35,8 @@
   /* ---------- Smooth scroll ---------- */
   let lenis = null;
   if (!reduced && hasGsap && typeof Lenis !== "undefined") {
-    lenis = new Lenis({ duration: 1.15, easing: (t) => 1 - Math.pow(1 - t, 4) });
+    lenis = new Lenis({ lerp: 0.085, wheelMultiplier: 0.9 });
+    lenis.stop(); // locked until the intro finishes
     lenis.on("scroll", (e) => { ScrollTrigger.update(); onScrollNav(e.scroll); });
     gsap.ticker.add((t) => lenis.raf(t * 1000));
     gsap.ticker.lagSmoothing(0);
@@ -142,6 +146,7 @@
 
   /* ================= MOTION ================= */
   gsap.registerPlugin(ScrollTrigger);
+  ScrollTrigger.config({ ignoreMobileResize: true });
   root.classList.add("motion");
 
   // Split philosophy statement into words
@@ -150,7 +155,7 @@
   });
 
   /* Loader → hero intro */
-  const intro = gsap.timeline({ defaults: { ease: "expo.out" } });
+  const intro = gsap.timeline({ paused: true, defaults: { ease: "expo.out" }, onComplete: () => lenis && lenis.start() });
   intro
     .to(".loader-word", { clipPath: "inset(0 0% 0 0)", duration: 1.2, ease: "power3.inOut" })
     .to(".loader-rule", { scaleX: 1, duration: .9 }, "-=.5")
@@ -162,13 +167,21 @@
     .from(".nav", { autoAlpha: 0, duration: 1.2 }, "-=1.6")
     .set(".loader", { display: "none" });
 
+  // Wait for the hero photo to be fully decoded so it never pops in mid-animation
+  const heroImg = $(".hero-media img");
+  Promise.race([
+    (heroImg.complete ? Promise.resolve() : new Promise((r) => heroImg.addEventListener("load", r, { once: true })))
+      .then(() => heroImg.decode && heroImg.decode()).catch(() => {}),
+    new Promise((r) => setTimeout(r, 3500))
+  ]).then(() => intro.play());
+
   const mm = gsap.matchMedia();
 
   /* HERO: arch opens to full bleed */
   mm.add({ desk: "(min-width: 861px)", mob: "(max-width: 860px)" }, (ctx) => {
     const { desk } = ctx.conditions;
     const tl = gsap.timeline({
-      scrollTrigger: { trigger: ".hero", start: "top top", end: "bottom bottom", scrub: 1 }
+      scrollTrigger: { trigger: ".hero", start: "top top", end: "bottom bottom", scrub: true }
     });
     tl.to(".hero-media", {
       clipPath: desk ? "inset(0vh 0vw 0vh 0vw round 0vw 0vw 0px 0px)" : "inset(0vh 0px 0vh 0px round 0vw 0vw 0px 0px)",
@@ -183,13 +196,16 @@
 
   /* Marquee drifts with scroll velocity */
   const track = $(".marquee-track");
-  const half = () => track.scrollWidth / 2;
+  let halfW = track.scrollWidth / 2;
+  addEventListener("resize", () => (halfW = track.scrollWidth / 2));
+  const half = () => halfW;
+  const setX = gsap.quickSetter(track, "x", "px");
   let mx = 0, boost = 0;
   gsap.ticker.add(() => {
     mx -= .6 + boost;
     boost *= .92;
     if (-mx >= half()) mx += half();
-    gsap.set(track, { x: mx });
+    setX(mx);
   });
   ScrollTrigger.create({ onUpdate: (s) => { boost = Math.min(Math.abs(s.getVelocity()) / 220, 14); } });
 
@@ -346,5 +362,5 @@
     });
   }
 
-  addEventListener("load", () => ScrollTrigger.refresh());
+  addEventListener("load", () => { halfW = track.scrollWidth / 2; ScrollTrigger.refresh(); });
 })();
