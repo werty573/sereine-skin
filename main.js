@@ -183,10 +183,11 @@
     const tl = gsap.timeline({
       scrollTrigger: { trigger: ".hero", start: "top top", end: "bottom bottom", scrub: true }
     });
-    tl.to(".hero-media", {
-      clipPath: desk ? "inset(0vh 0vw 0vh 0vw round 0vw 0vw 0px 0px)" : "inset(0vh 0px 0vh 0px round 0vw 0vw 0px 0px)",
-      ease: "none", duration: 1
-    })
+    // Each edge of the arch is its own CSS variable, so the shape always interpolates cleanly
+    tl.fromTo(".hero-media",
+      desk ? { "--t": "15vh", "--r": "6vw", "--b": "7vh", "--l": "56vw", "--rt": "19vw", "--rb": "28px" }
+           : { "--t": "54vh", "--r": "16px", "--b": "3vh", "--l": "16px", "--rt": "46vw", "--rb": "22px" },
+      { "--t": "0vh", "--r": desk ? "0vw" : "0px", "--b": "0vh", "--l": desk ? "0vw" : "0px", "--rt": "0vw", "--rb": "0px", ease: "none", duration: 1 })
       .fromTo(".hero-media img", desk ? { x: "40vw", y: 0, scale: .9 } : { x: "23vw", y: "26vh", scale: 1.6 }, { x: 0, y: 0, scale: 1, ease: "none", duration: 1 }, 0)
       .to(".hero-copy", { y: desk ? -120 : -80, opacity: 0, ease: "power1.in", duration: .55 }, 0)
       .to(".scroll-cue", { opacity: 0, duration: .2 }, 0)
